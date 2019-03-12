@@ -5,7 +5,7 @@ import math
 
 pygame.init()
 
-fps = 60
+fps = 600
 
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
@@ -21,12 +21,21 @@ screen = pygame.display.set_mode(size)
 done = False
 clock = pygame.time.Clock()
 pygame.font.init()
-myfont = pygame.font.SysFont('Times New Roman', 30)
+myfont = pygame.font.SysFont('Comic Sans MS', 50)
+myfont2 = pygame.font.SysFont('Comic Sans MS', 25)
 x_speed = 0
 y_speed = 0
 game_over = False
 enemy_speed = 3
 kill_count = 0
+start_hp = 1
+
+SPAWN_TIMER = pygame.USEREVENT + 1
+spawn_interval = 3000
+pygame.time.set_timer(SPAWN_TIMER, spawn_interval)
+SPAWN_TIMER_EL = pygame.USEREVENT + 2
+spawn_interval_el = 30000
+pygame.time.set_timer(SPAWN_TIMER_EL, spawn_interval)
 
 class Ship(pygame.sprite.Sprite):
     def __init__(self, start_pos):
@@ -48,9 +57,9 @@ class Laser(pygame.sprite.Sprite):
         self.image = pygame.image.load('laser2.png')
         self.image = pygame.transform.scale(self.image, (15, 15))
         self.rect = self.image.get_rect()
-        self.rect.x = start_pos.x
-        self.rect.y = start_pos.y
-        self.y_speed = 20
+        self.rect.centerx = start_pos.x
+        self.rect.centery = start_pos.y
+        self.y_speed = 30
 
 
     def update(self):
@@ -61,18 +70,39 @@ class Laser(pygame.sprite.Sprite):
 
 
 class Enemies(pygame.sprite.Sprite):
-    def __init__(self):
+    def __init__(self, start_pos):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load('enemy.png')
-        self.image = pygame.transform.scale(self.image, (50, 50))
+        self.image = pygame.image.load('enemy2.png')
+        self.image = pygame.transform.scale(self.image, (60, 50))
         self.rect = self.image.get_rect()
-        self.rect.x = self.generate_random_start_pos()
-        self.rect.y = 30
+        self.rect.centerx = self.generate_random_start_pos()
+        self.rect.centery = start_pos.y
         self.y_speed = enemy_speed
-        self.image = pygame.transform.rotate(self.image, 180)
+        #self.image = pygame.transform.rotate(self.image, 180)
 
     def generate_random_start_pos(self):
-        start_pos_x = random.randint(0, 340)
+        start_pos_x = random.randint(10, 340)
+        return start_pos_x
+
+    def update(self, time_passed):
+        self.rect.update()
+
+    def move(self):
+        self.rect.y += self.y_speed
+
+
+class Ekstra_life(pygame.sprite.Sprite):
+    def __init__(self, start_pos):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load('ekstra_life.png')
+        self.image = pygame.transform.scale(self.image, (60, 50))
+        self.rect = self.image.get_rect()
+        self.rect.centerx = self.generate_random_start_pos()
+        self.rect.centery = start_pos.y
+        self.y_speed = enemy_speed
+
+    def generate_random_start_pos(self):
+        start_pos_x = random.randint(10, 340)
         return start_pos_x
 
     def update(self, time_passed):
@@ -92,15 +122,17 @@ class Enemies(pygame.sprite.Sprite):
 all_sprites = pygame.sprite.Group()
 all_lasers = pygame.sprite.Group()
 all_enemies = pygame.sprite.Group()
+ekstra_lifes = pygame.sprite.Group()
 ship = pygame.sprite.Group()
-player = Ship(Vector2(165, 600))
-enemy = Enemies()
-#background = Background()
+player = Ship(Vector2(165, 580))
+enemy = Enemies(Vector2())
+ekstra_life = Ekstra_life(Vector2())
+ekstra_lifes.add(ekstra_life)
 ship.add(player)
-#all_sprites.add(background)
 all_sprites.add(enemy)
 all_enemies.add(enemy)
 all_sprites.add(player)
+all_sprites.add(ekstra_life)
 
 # -------- Main Program Loop -----------
 while not done:
@@ -116,13 +148,27 @@ while not done:
             if event.key == pygame.K_q:
                 done = True
             if event.key == pygame.K_UP:
-                laser = Laser(Vector2(player.rect.x, player.rect.y))
+                laser = Laser(Vector2(player.rect.centerx, player.rect.top))
                 all_sprites.add(laser)
                 all_lasers.add(laser)
-
+        elif event.type == SPAWN_TIMER:
+            pygame.time.set_timer(SPAWN_TIMER, 0)
+            e = Enemies(Vector2())
+            all_sprites.add(e)
+            all_enemies.add(e)
+            spawn_interval -= 100
+            spawn_interval = max(spawn_interval, 500)
+            pygame.time.set_timer(SPAWN_TIMER, spawn_interval)
+        elif event.type == SPAWN_TIMER_EL:
+            pygame.time.set_timer(SPAWN_TIMER_EL, 0)
+            el = Ekstra_life(Vector2())
+            all_sprites.add(el)
+            ekstra_lifes.add(el)
+            spawn_interval_el -= 5000
+            spawn_interval_el = max(spawn_interval, 5000)
+            pygame.time.set_timer(SPAWN_TIMER_EL, 30000)
         #elif event.type == pygame.KEYUP:
-            #if event.key == pygame.K_a or event.key == pygame.K_d:
-                #x_speed = 0
+            #if event.key == pygame.K_UP:
 
     # --- Game Logic
 
@@ -136,35 +182,52 @@ while not done:
     for enemy in all_enemies:
         enemy.move()
 
+    for ekstra_life in ekstra_lifes:
+        ekstra_life.move()
+
+    instruction_text = myfont2.render('Kill the enemies and collect ekstra lives', False, (255, 255, 255))
     collisions_1 = pygame.sprite.groupcollide(all_lasers, all_enemies, True, True)
-    collisions_2 = pygame.sprite.groupcollide(ship, all_enemies, True, True)
-    if collisions_2:
-        game_over_text = myfont.render('GAME OVER', False, (255, 255, 255))
-        game_over = True
-    if collisions_1:
-        kill_count += 1
-        print (kill_count)
-        #enemy_speed += 0.2
-        e = Enemies()
-        #all_sprites.add(e)
-        #all_enemies.add(e)
-    if enemy.rect.y > 700:
+    collisions_2 = pygame.sprite.groupcollide(ship, all_enemies, False, True)
+    collisions_3 = pygame.sprite.groupcollide(ship, ekstra_lifes, False, True)
+    collisions_4 = pygame.sprite.groupcollide(all_lasers, ekstra_lifes, True, True)
+    if start_hp == 0:
         game_over_text = myfont.render('GAME OVER', False, (255, 255, 255))
         game_over = True
         player.kill()
-    if player.rect.centerx > 400:
+    if collisions_2:
+        start_hp -= 1
+    if collisions_1:
+        kill_count += 1
+        enemy_speed += 0.2
+        e = Enemies(Vector2())
+        #all_sprites.add(e)
+        #all_enemies.add(e)
+    if collisions_3:
+        start_hp += 1
+    if enemy.rect.y > 700:
+        start_hp -= 1
+        player.kill()
+    if player.rect.centerx > 365:
         x_speed = 0
-    if player.rect.centerx < 0:
+    if player.rect.centerx < 35:
         x_speed = 0
     kill_counter = myfont.render("Score: %d"%(kill_count), True, (255, 255, 255))
-    screen.blit(kill_counter, (5, 30))
+    game_hp = myfont.render("Lives: %d"%(start_hp), True, (255, 255, 255))
+    screen.blit(kill_counter, (5, 5))
+    screen.blit(game_hp, (5, 45))
+    if player.rect.x > 340:
+        kill_count += 1
+    if done == True:
+        print ('Score:', kill_count)
 
 
 
 
     all_sprites.draw(screen)
     if game_over == True:
-        screen.blit(game_over_text,(100, 350))
+        screen.blit(game_over_text,(90, 350))
+    if done == False:
+        screen.blit(instruction_text, (35, 680))
 
 
 
@@ -177,4 +240,4 @@ while not done:
 # Close the window and quit.
 pygame.quit()
 
-#65
+#High score = 73
